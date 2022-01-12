@@ -1,4 +1,4 @@
-name: Backport PR to branch
+name: Push a PR through check gates
 on:
   issue_comment:
     types: [created]
