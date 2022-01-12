@@ -1,0 +1,56 @@
+name: Backport PR to branch
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  backport:
+    if: github.event.issue.pull_request != '' && contains(github.event.comment.body, '/ropepusher')
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Extract retries allowed
+      uses: actions/github-script@v3
+      id: retries-extractor
+      with:
+        result-encoding: string
+        script: |
+          if (context.eventName !== "issue_comment") throw "Error: This action only works on issue_comment events.";
+
+          // extract the optional retry count attached to the end of the command
+          // The expected format for the command is one of 2 examples:
+          // 1. `/ropepusher`
+          // 2. `/ropepusher 32` Where "32" is a string of digits representing the number of retries allowed for each check-run. (note this is limited to 2 digits, so no more than 99 retries)
+          const regex = /\/ropepusher( ([\d]{1,2}))?/;
+          retries = regex.exec(context.payload.comment.body);
+          if (retries == null) throw "Error: Command does not match expected format: `/ropepusher XX`.";
+
+          var retVal = {
+            result: 3
+          };
+
+          if (retries[2] != null) {
+              retVal.result = Number.parseInt(retries[2]);
+          }
+
+          return retVal;
+    - name: Post acknowledgement to pull request
+      uses: actions/github-script@v3
+      with:
+        script: |
+          const ack_bodytext = `Starting RopePusher to push through PR #${{ context.issue.number }}. Each check-run may be re-requested at most ${{ steps.retries-extractor.outputs.result }} time(s). Check action status [here](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${process.env.GITHUB_RUN_ID})`;
+          await github.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: ack_bodytext
+          });
+    - name: Run RopePusher
+      uses: ./eng/actions/ropepusher
+      with:
+        retries: ${{ steps.target-branch-extractor.outputs.result }}
+        auth_token: ${{ secrets.GITHUB_TOKEN }}
