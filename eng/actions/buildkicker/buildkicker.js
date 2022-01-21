@@ -264,7 +264,7 @@ async function run() {
                             check_run_id: run.id,
                           };
                         console.log("Executing rerequestRun on octokit: " + JSON.stringify(reqParams));
-                        await octokit.rest.checks.rerequestRun(reqParams);
+                        await octokit.request('POST /repos/{owner}/{repo}/check-runs/{check_run_id}/rerequest', reqParams);
                     }
                     else {
                         // If we are out of retries, abort
@@ -307,6 +307,7 @@ async function run() {
         core.setFailed(error);
 
         console.log (`Build Kicker global Exception: ${error.message}`);
+        console.log (`Error details: ${JSON.stringify(error)}`);
         // If we get an error, try to post it to github if requested
         if (error.postToGitHub === undefined || error.postToGitHub == true) {
             let timestamp = new Date(Date.now());
